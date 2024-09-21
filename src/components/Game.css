@@ -1,0 +1,201 @@
+/* Game.css */
+
+.connect-wallet-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  padding: 10px 20px;
+  background-color: #007bff;
+  color: #fff;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  z-index: 100;
+}
+
+.connect-wallet-btn:hover {
+  background-color: #0056b3;
+}
+
+/* Toggle Wallet Visibility Button */
+.toggle-wallet-btn {
+  position: absolute;
+  top: 10px;
+  right: 130px; /* Adjust based on button size */
+  padding: 10px 20px;
+  background-color: #28a745;
+  color: #fff;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  z-index: 100;
+}
+
+.toggle-wallet-btn:hover {
+  background-color: #218838;
+}
+
+/* Wallet Container */
+.wallet-container {
+  width: 300px;
+  background-color: rgba(0, 0, 0, 0.8);
+  color: #fff;
+  border-radius: 10px;
+  padding: 20px;
+  display: none;
+  z-index: 999;
+}
+
+.wallet-container.visible {
+  display: block;
+}
+
+/* Wallet Header */
+.wallet-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: move;
+}
+
+.wallet-header h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 20px;
+  cursor: pointer;
+}
+
+/* Wallet Content */
+.wallet-content {
+  margin-top: 10px;
+}
+
+.copy-btn {
+  background: none;
+  border: none;
+  color: #28a745;
+  cursor: pointer;
+  text-decoration: underline;
+  margin-left: 5px;
+}
+
+/* Ordinooki Images */
+.nooki-image {
+  width: 50px;
+  height: 50px;
+  margin: 5px;
+  cursor: pointer;
+  border: 2px solid #fff;
+  border-radius: 5px;
+}
+
+.challenge-window {
+  position: absolute;
+  top: 20%;
+  left: 35%;
+  width: 30%;
+  height: 40%;
+  background-color: rgba(255, 255, 255, 0.9);
+  border: 1px solid #000;
+  z-index: 10;
+}
+
+.challenge-content {
+  padding: 20px;
+  text-align: center;
+}
+
+.challenge-popup {
+  position: absolute;
+  top: 40%;
+  left: 40%;
+  width: 20%;
+  padding: 20px;
+  background-color: rgba(255, 255, 255, 0.95);
+  border: 2px solid #000;
+  border-radius: 10px;
+  text-align: center;
+  z-index: 1000;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.challenge-popup p {
+  margin-bottom: 20px;
+  font-size: 16px;
+}
+
+.challenge-popup button {
+  margin: 5px;
+  padding: 10px 20px;
+  font-size: 14px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  background-color: #28a745;
+  color: #fff;
+}
+
+.challenge-popup button:hover {
+  background-color: #218838;
+}
+
+/* Notification Container */
+.notification {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  min-width: 250px;
+  padding: 15px 20px;
+  border-radius: 5px;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  z-index: 2000;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  animation: slideIn 0.5s forwards;
+}
+
+/* Notification Types */
+.notification.success {
+  background-color: #4caf50; /* Green */
+}
+
+.notification.error {
+  background-color: #f44336; /* Red */
+}
+
+.notification.info {
+  background-color: #2196f3; /* Blue */
+}
+
+/* Close Button */
+.notification .close-btn {
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+/* Slide In Animation */
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.nooki-image.selected {
+  border: 2px solid #00ff00; /* Green border for selected Ordinooki */
+}

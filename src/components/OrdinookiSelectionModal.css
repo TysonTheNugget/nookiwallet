@@ -1,0 +1,81 @@
+/* src/components/OrdinookiSelectionModal.css */
+.ordinooki-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 3000;
+}
+
+.ordinooki-modal {
+  background-color: #fff;
+  padding: 20px;
+  border-radius: 10px;
+  width: 600px;
+  max-height: 80vh;
+  overflow-y: auto;
+  position: relative;
+}
+
+.ordinooki-modal h2 {
+  margin-top: 0;
+}
+
+.close-button {
+  position: absolute;
+  top: 10px;
+  right: 15px;
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+}
+
+.ordinooki-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.ordinooki-item {
+  border: 2px solid transparent;
+  border-radius: 5px;
+  padding: 5px;
+  cursor: pointer;
+  text-align: center;
+  width: 100px;
+}
+
+.ordinooki-item.selected {
+  border-color: green;
+}
+
+.ordinooki-item img {
+  width: 80px;
+  height: 80px;
+  object-fit: cover;
+}
+
+.confirm-button {
+  margin-top: 20px;
+  padding: 10px 20px;
+  background-color: #007bff;
+  border: none;
+  border-radius: 5px;
+  color: #fff;
+  cursor: pointer;
+}
+
+.confirm-button:disabled {
+  background-color: #cccccc;
+  cursor: not-allowed;
+}
+
+.error-message {
+  color: red;
+}

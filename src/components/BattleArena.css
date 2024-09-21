@@ -1,0 +1,75 @@
+/* src/components/BattleArena.css */
+
+.battle-arena-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.75); /* Semi-transparent dark overlay */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 5000; /* Ensure it's above other elements */
+}
+
+.battle-arena-content {
+  background-color: #ffffff; /* White background */
+  padding: 20px;
+  border-radius: 10px;
+  text-align: center;
+  width: 80%;
+  max-width: 800px;
+  display: flex; /* Add this to make it a flex container */
+  flex-direction: column; /* Stack children vertically */
+  align-items: center; /* Center children horizontally */
+  justify-content: center; /* Center children vertically */
+}
+
+.cards-container {
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  width: 100%;
+}
+
+.battle-result {
+  margin-top: 20px;
+}
+
+.battle-result p {
+  font-size: 24px;
+  font-weight: bold;
+}
+
+.battle-result button {
+  margin-top: 10px;
+  padding: 10px 20px;
+  font-size: 16px;
+}
+
+.battle-log {
+  max-height: 150px; /* Set a fixed height to prevent overflow */
+  overflow-y: auto; /* Make the battle log scrollable when it overflows */
+  width: 100%;
+  margin-top: 20px;
+  background-color: #fff;
+  padding: 10px;
+  border-radius: 5px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.battle-log h4 {
+  margin-top: 0;
+}
+
+.battle-log ul {
+  list-style-type: none;
+  padding: 0;
+  margin: 0;
+}
+
+.battle-log li {
+  margin-bottom: 5px;
+  text-align: left; /* Align text to the left for readability */
+}

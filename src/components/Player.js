@@ -1,3 +1,4 @@
+// Player.js
 import Phaser from 'phaser';
 
 export default class Player {

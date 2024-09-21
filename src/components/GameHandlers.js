@@ -1,44 +1,50 @@
+// GameHandlers.js
+
 import WebSocketManager from '../utils/WebSocketManager';
 
 // Handle game updates
 export function updateGame(time, delta, player, scene, lastUpdateTime, playerId, otherPlayers) {
-  player.setVelocity(0);
+  // Access the sprite within the container
+  const playerSprite = player.list[0];
+
+  // Reset velocity
+  player.body.setVelocity(0);
 
   const speed = 160;
   const diagonalSpeed = speed / Math.sqrt(2);
 
   if (scene.cursors.left.isDown && scene.cursors.up.isDown) {
-    player.setVelocity(-diagonalSpeed, -diagonalSpeed);
-    player.anims.play('runUp', true);
-    player.flipX = true;
+    player.body.setVelocity(-diagonalSpeed, -diagonalSpeed);
+    playerSprite.anims.play('runUp', true);
+    playerSprite.flipX = true;
   } else if (scene.cursors.right.isDown && scene.cursors.up.isDown) {
-    player.setVelocity(diagonalSpeed, -diagonalSpeed);
-    player.anims.play('runUp', true);
-    player.flipX = false;
+    player.body.setVelocity(diagonalSpeed, -diagonalSpeed);
+    playerSprite.anims.play('runUp', true);
+    playerSprite.flipX = false;
   } else if (scene.cursors.left.isDown && scene.cursors.down.isDown) {
-    player.setVelocity(-diagonalSpeed, diagonalSpeed);
-    player.anims.play('runDown', true);
-    player.flipX = true;
+    player.body.setVelocity(-diagonalSpeed, diagonalSpeed);
+    playerSprite.anims.play('runDown', true);
+    playerSprite.flipX = true;
   } else if (scene.cursors.right.isDown && scene.cursors.down.isDown) {
-    player.setVelocity(diagonalSpeed, diagonalSpeed);
-    player.anims.play('runDown', true);
-    player.flipX = false;
+    player.body.setVelocity(diagonalSpeed, diagonalSpeed);
+    playerSprite.anims.play('runDown', true);
+    playerSprite.flipX = false;
   } else if (scene.cursors.left.isDown) {
-    player.setVelocityX(-speed);
-    player.anims.play('walk', true);
-    player.flipX = true;
+    player.body.setVelocityX(-speed);
+    playerSprite.anims.play('walk', true);
+    playerSprite.flipX = true;
   } else if (scene.cursors.right.isDown) {
-    player.setVelocityX(speed);
-    player.anims.play('walk', true);
-    player.flipX = false;
+    player.body.setVelocityX(speed);
+    playerSprite.anims.play('walk', true);
+    playerSprite.flipX = false;
   } else if (scene.cursors.up.isDown) {
-    player.setVelocityY(-speed);
-    player.anims.play('runUp', true);
+    player.body.setVelocityY(-speed);
+    playerSprite.anims.play('runUp', true);
   } else if (scene.cursors.down.isDown) {
-    player.setVelocityY(speed);
-    player.anims.play('runDown', true);
+    player.body.setVelocityY(speed);
+    playerSprite.anims.play('runDown', true);
   } else {
-    player.anims.play('stand', true);
+    playerSprite.anims.play('stand', true);
   }
 
   // Control update interval to reduce the number of updates per second
@@ -47,8 +53,9 @@ export function updateGame(time, delta, player, scene, lastUpdateTime, playerId,
       id: playerId,
       x: player.x,
       y: player.y,
-      animation: player.anims.currentAnim.key,
-      flipX: player.flipX
+      animation: playerSprite.anims.currentAnim.key,
+      flipX: playerSprite.flipX,
+      scale: playerSprite.scaleX, // Assuming uniform scale
     });
     lastUpdateTime.current = time;
   }
@@ -60,26 +67,45 @@ export function updateGame(time, delta, player, scene, lastUpdateTime, playerId,
 // Handle incoming WebSocket messages
 export function handleWebSocketMessage(data, localPlayerId, scene, otherPlayers) {
   const { players } = data;
-  Object.keys(players).forEach(id => {
-    if (id !== localPlayerId) { // Ignore local player
-      const { x, y, animation, flipX } = players[id];
+  Object.keys(players).forEach((id) => {
+    if (id !== localPlayerId) {
+      const { x, y, animation, flipX, scale, username } = players[id];
 
       if (!otherPlayers.current[id]) {
-        const newPlayer = scene.physics.add.sprite(x, y, 'sprite1');
-        newPlayer.setInteractive();
-        newPlayer.setCollideWorldBounds(true);
-        otherPlayers.current[id] = newPlayer;
+        // Create the sprite and text
+        const otherPlayerSprite = scene.add.sprite(0, 0, 'sprite1').setScale(scale || 2);
+        const otherUsernameText = scene.add.text(0, -50, username || id, {
+          fontSize: '16px',
+          fill: '#fff',
+        });
+        otherUsernameText.setOrigin(0.5, 1);
+
+        // Create a container
+        const otherPlayerContainer = scene.add.container(x, y, [otherPlayerSprite, otherUsernameText]);
+
+        // Enable physics
+        scene.physics.world.enable(otherPlayerContainer);
+        otherPlayerContainer.body.setCollideWorldBounds(true);
+
+        otherPlayers.current[id] = otherPlayerContainer;
       }
 
       const otherPlayer = otherPlayers.current[id];
+      const otherPlayerSprite = otherPlayer.list[0];
+
       otherPlayer.targetX = x;
       otherPlayer.targetY = y;
-      otherPlayer.flipX = flipX;
+      otherPlayerSprite.flipX = flipX;
+
+      // Update the scale of the other player's sprite
+      if (scale) {
+        otherPlayerSprite.setScale(scale);
+      }
 
       if (animation && scene.anims.exists(animation)) {
-        otherPlayer.anims.play(animation, true);
+        otherPlayerSprite.anims.play(animation, true);
       } else {
-        otherPlayer.anims.play('stand', true);
+        otherPlayerSprite.anims.play('stand', true);
       }
     }
   });
@@ -87,7 +113,7 @@ export function handleWebSocketMessage(data, localPlayerId, scene, otherPlayers)
 
 // Improved interpolation for player positions
 function interpolateOtherPlayers(delta, otherPlayers) {
-  Object.values(otherPlayers).forEach(player => {
+  Object.values(otherPlayers.current).forEach((player) => {
     const distanceX = player.targetX - player.x;
     const distanceY = player.targetY - player.y;
 
