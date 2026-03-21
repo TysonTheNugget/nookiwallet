@@ -11,6 +11,7 @@ import './OrdinookiSelectionModal.css'; // Ensure you have appropriate CSS
  * @param {string} props.mode - 'challenge' | 'accept'
  */
 const OrdinookiSelectionModal = ({ isOpen, onClose, onConfirm, mode }) => {
+  const API_BASE = 'http://localhost:5000';
   const [ordinookis, setOrdinookis] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -19,6 +20,7 @@ const OrdinookiSelectionModal = ({ isOpen, onClose, onConfirm, mode }) => {
 
   useEffect(() => {
     if (isOpen) {
+      console.log('[Nooki Latest] Ordinooki modal API base:', API_BASE);
       fetchOrdinookis();
     }
   }, [isOpen]);
@@ -27,7 +29,7 @@ const OrdinookiSelectionModal = ({ isOpen, onClose, onConfirm, mode }) => {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch('/api/ordinookis', { // Ensure proxy is set or use absolute URL
+      const response = await fetch(`${API_BASE}/api/ordinookis`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -36,12 +38,24 @@ const OrdinookiSelectionModal = ({ isOpen, onClose, onConfirm, mode }) => {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to fetch Ordinookis.');
+        const raw = await response.text();
+        let errorData = {};
+        try { errorData = JSON.parse(raw); } catch { errorData = {}; }
+        throw new Error(errorData.error || `Failed to fetch Ordinookis (HTTP ${response.status}).`);
       }
 
-      const data = await response.json();
-      setOrdinookis(data.ordinookis); // Adjust based on your API response
+      const raw = await response.text();
+      let data = {};
+      try {
+        data = JSON.parse(raw);
+      } catch {
+        throw new Error('Backend returned non-JSON response for /api/ordinookis.');
+      }
+      const list = data.ordinookis || [];
+      setOrdinookis(list); // Adjust based on your API response
+      if (!selectedId && list.length > 0) {
+        setSelectedId(list[0].id);
+      }
     } catch (err) {
       console.error(err);
       setError(err.message || 'An error occurred while fetching Ordinookis.');
@@ -60,7 +74,7 @@ const OrdinookiSelectionModal = ({ isOpen, onClose, onConfirm, mode }) => {
   setError(null);
   try {
     // Update selected Ordinooki in the backend
-    const response = await fetch('/api/auth/update-ordinookis', {
+    const response = await fetch(`${API_BASE}/api/auth/update-ordinookis`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -73,8 +87,10 @@ const OrdinookiSelectionModal = ({ isOpen, onClose, onConfirm, mode }) => {
     });
 
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || 'Failed to update selected Ordinooki.');
+      const raw = await response.text();
+      let errorData = {};
+      try { errorData = JSON.parse(raw); } catch { errorData = {}; }
+      throw new Error(errorData.error || `Failed to update selected Ordinooki (HTTP ${response.status}).`);
     }
 
     // Notify parent component

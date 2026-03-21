@@ -9,24 +9,78 @@ import jwt
 import datetime
 import time
 from functools import wraps
+from battle_logic import handle_battle  # Importing battle logic
 
 # Secret key for JWT (should be the same as in auth.py)
 SECRET_KEY = 'your_secret_key'  # Replace with the same secret key used in auth.py
 
-# MongoDB connection
-MONGODB_CONNECTION_STRING = os.environ.get('MONGODB_CONNECTION_STRING')
-if not MONGODB_CONNECTION_STRING:
-    print("Please set the MONGODB_CONNECTION_STRING environment variable.")
-    exit(1)
+class LocalUsersCollection:
+    def __init__(self, file_path):
+        self.file_path = file_path
+        self._ensure_file()
 
-try:
-    client = MongoClient(MONGODB_CONNECTION_STRING)
-    db = client['your_database_name']  # Replace with your actual database name
-    usuarios_collection = db['usuarios']  # Collection name
-    print("Connected to MongoDB.")
-except Exception as e:
-    print(f"Failed to connect to MongoDB: {e}")
-    exit(1)
+    def _ensure_file(self):
+        folder = os.path.dirname(self.file_path)
+        if folder and not os.path.exists(folder):
+            os.makedirs(folder, exist_ok=True)
+        if not os.path.exists(self.file_path):
+            with open(self.file_path, 'w', encoding='utf-8') as f:
+                json.dump([], f)
+
+    def _read(self):
+        self._ensure_file()
+        with open(self.file_path, 'r', encoding='utf-8') as f:
+            try:
+                return json.load(f)
+            except Exception:
+                return []
+
+    def _write(self, users):
+        with open(self.file_path, 'w', encoding='utf-8') as f:
+            json.dump(users, f, indent=2)
+
+    def find_one(self, query):
+        users = self._read()
+        username = query.get('username')
+        for user in users:
+            if user.get('username') == username:
+                return user
+        return None
+
+    def update_one(self, query, operations):
+        users = self._read()
+        username = query.get('username')
+        changed = False
+        for user in users:
+            if user.get('username') != username:
+                continue
+
+            set_values = operations.get('$set', {})
+            for key, value in set_values.items():
+                user[key] = value
+            changed = True
+            break
+
+        if changed:
+            self._write(users)
+
+# MongoDB connection (fallbacks to local JSON when env var is missing)
+MONGODB_CONNECTION_STRING = os.environ.get('MONGODB_CONNECTION_STRING')
+if MONGODB_CONNECTION_STRING:
+    try:
+        client = MongoClient(MONGODB_CONNECTION_STRING)
+        db = client['your_database_name']  # Replace with your actual database name
+        usuarios_collection = db['usuarios']  # Collection name
+        print("Connected to MongoDB.")
+    except Exception as e:
+        print(f"Failed to connect to MongoDB: {e}")
+        local_users_file = os.path.join(os.path.dirname(__file__), 'data', 'users.local.json')
+        usuarios_collection = LocalUsersCollection(local_users_file)
+        print(f"Using local auth storage: {local_users_file}")
+else:
+    local_users_file = os.path.join(os.path.dirname(__file__), 'data', 'users.local.json')
+    usuarios_collection = LocalUsersCollection(local_users_file)
+    print(f"MONGODB_CONNECTION_STRING not set. Using local auth storage: {local_users_file}")
 
 # Load Ordinooki data from JSON
 ORDINOOKI_JSON_PATH = os.path.join(os.path.dirname(__file__), 'ordinooki.json')  # Adjust the path as needed
@@ -53,7 +107,10 @@ game_state = {
     "players": {}             # Player data will be stored here
 }
 
-async def server(websocket, path):
+# Active battles management
+active_battles = {}  # Key: tuple of (player1, player2), Value: asyncio.Task
+
+async def server(websocket, path=None):
     # Receive the authentication token from the client
     try:
         auth_message = await asyncio.wait_for(websocket.recv(), timeout=5)
@@ -244,6 +301,30 @@ async def server(websocket, path):
 
                     print(f"Fight started between {from_username} and {target_username}")
 
+                    # Initiate the battle asynchronously
+                    battle_key = tuple(sorted([from_username, target_username]))
+                    if battle_key in active_battles:
+                        await from_client.send(json.dumps({
+                            "type": "error",
+                            "message": "A battle between these players is already in progress."
+                        }))
+                        return
+
+                    # Create player data copies for the battle
+                    player1_data = {
+                        "name": from_username,
+                        "ordinooki": from_ordinooki,
+                        "health": from_ordinooki['meta']['stats']['HP']
+                    }
+                    player2_data = {
+                        "name": target_username,
+                        "ordinooki": to_ordinooki,
+                        "health": to_ordinooki['meta']['stats']['HP']
+                    }
+
+                    # Start the battle as an asyncio Task with clients
+                    battle_task = asyncio.create_task(run_battle(battle_key, player1_data, player2_data, from_client, target_client))
+                    active_battles[battle_key] = battle_task
                 else:
                     # One or both users are not connected
                     print(f"Challenge accept failed: {from_username} or {target_username} not connected.")
@@ -263,16 +344,14 @@ async def server(websocket, path):
                     target_client = username_to_client[target_username]
                     from_client = username_to_client[from_username]
 
-                    await target_client.send(json.dumps({
+                    decline_message = {
                         "type": "challenge_decline",
                         "from": from_username,
                         "to": target_username
-                    }))
-                    await from_client.send(json.dumps({
-                        "type": "challenge_decline",
-                        "from": from_username,
-                        "to": target_username
-                    }))
+                    }
+
+                    await target_client.send(json.dumps(decline_message))
+                    await from_client.send(json.dumps(decline_message))
                     print(f"Challenge declined by {from_username} for {target_username}")
                 else:
                     # One or both users are not connected
@@ -342,6 +421,65 @@ async def server(websocket, path):
         for client in connected_clients:
             await client.send(json.dumps(disconnect_message))
 
+async def run_battle(battle_key, player1, player2, client1, client2):
+    try:
+        # Pass client1 and client2 to handle_battle
+        battle_log, result = await handle_battle(player1, player2, client1, client2)
+
+        # Send battle logs to both clients
+        for log_entry in battle_log:
+            battle_update = {
+                "type": "battle_update",
+                "message": log_entry
+            }
+            await client1.send(json.dumps(battle_update))
+            await client2.send(json.dumps(battle_update))
+            await asyncio.sleep(0.1)  # Slight delay to simulate real-time updates
+
+        # Send battle result
+        battle_result = {
+            "type": "battle_result",
+            "result": result
+        }
+        await client1.send(json.dumps(battle_result))
+        await client2.send(json.dumps(battle_result))
+
+    except websockets.exceptions.ConnectionClosed:
+        # Handle client disconnection
+        disconnect_message = {
+            "type": "battle_error",
+            "message": "The opponent has disconnected. Battle ended."
+        }
+        try:
+            await client1.send(json.dumps(disconnect_message))
+        except:
+            pass
+        try:
+            await client2.send(json.dumps(disconnect_message))
+        except:
+            pass
+        print(f"Battle {battle_key} ended due to disconnection.")
+
+    except Exception as e:
+        error_message = {
+            "type": "battle_error",
+            "message": f"An error occurred during the battle: {str(e)}"
+        }
+        try:
+            await client1.send(json.dumps(error_message))
+        except:
+            pass
+        try:
+            await client2.send(json.dumps(error_message))
+        except:
+            pass
+        print(f"Error during battle {battle_key}: {e}")
+
+    finally:
+        # Remove the battle from active battles
+        active_battles.pop(battle_key, None)
+        print(f"Battle {battle_key} concluded with result: {result if 'result' in locals() else 'Error or Disconnection'}")
+
 def authenticate_user(token):
     try:
         # Decode the JWT token
@@ -369,15 +507,16 @@ def authenticate_user(token):
         print(f"Error during token decoding: {e}")
         return None
 
-# Start WebSocket server with higher timeout settings
-start_server = websockets.serve(
-    server,
-    "localhost",
-    6789,
-    ping_interval=20,  # Ping clients every 20 seconds to keep the connection alive
-    ping_timeout=60,   # Wait for 60 seconds before considering a client dead
-)
+async def main():
+    async with websockets.serve(
+        server,
+        "localhost",
+        6789,
+        ping_interval=20,  # Ping clients every 20 seconds to keep the connection alive
+        ping_timeout=60,   # Wait for 60 seconds before considering a client dead
+    ):
+        print("WebSocket server started on ws://localhost:6789")
+        await asyncio.Future()  # run forever
 
-asyncio.get_event_loop().run_until_complete(start_server)
-print("WebSocket server started on ws://localhost:6789")
-asyncio.get_event_loop().run_forever()
+if __name__ == '__main__':
+    asyncio.run(main())

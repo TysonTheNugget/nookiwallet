@@ -1,4 +1,4 @@
-// WebSocketManager.js
+// src/WebSocketManager.js
 
 class WebSocketManager {
   constructor() {
@@ -28,7 +28,13 @@ class WebSocketManager {
     };
 
     this.socket.onmessage = (event) => {
-      const data = JSON.parse(event.data);
+      let data;
+      try {
+        data = JSON.parse(event.data);
+      } catch (e) {
+        console.error('Invalid WebSocket JSON payload:', event.data);
+        return;
+      }
 
       if (data.error) {
         console.error('WebSocket error:', data.error);

@@ -46,6 +46,7 @@ function Game() {
   const handleLogin = (authToken) => {
     setToken(authToken);
   };
+  const currentUsername = token ? getUsernameFromToken(token) : null;
 
   // Phaser and WebSocket References
   const gameRef = useRef(null);
@@ -340,8 +341,10 @@ function Game() {
   };
 
   // Function to navigate to the fight arena
-  const navigateToFight = ({ player1, player2 }) => {
+  const navigateToFight = ({ player1, player2, battleId, currentTurn }) => {
     setFightData({
+      battleId,
+      currentTurn,
       player1: {
         ...player1.ordinooki, // Your Ordinooki data
         name: player1.username,
@@ -422,47 +425,63 @@ function Game() {
 
   // Function to handle WebSocket messages
   function handleWebSocketMessage(data, username, scene, otherPlayers) {
-    // Handle player updates
-    if (data.type === 'playerUpdate' && data.username !== username) {
-      let otherPlayer = otherPlayers.current[data.username];
+    const ensureOtherPlayer = (remoteUsername, payload) => {
+      if (!remoteUsername || remoteUsername === username) return null;
+
+      let otherPlayer = otherPlayers.current[remoteUsername];
       if (!otherPlayer) {
-        // Create the other player's sprite and container
-        const otherPlayerSprite = scene.add.sprite(0, 0, 'sprite1').setScale(data.scale);
-        const usernameText = scene.add.text(0, -50, data.username, {
+        const otherPlayerSprite = scene.add.sprite(0, 0, 'sprite1').setScale(payload.scale || 2);
+        const usernameText = scene.add.text(0, -50, remoteUsername, {
           fontSize: '16px',
           fill: '#fff',
         }).setOrigin(0.5, 1);
 
-        otherPlayer = scene.add.container(data.x, data.y, [otherPlayerSprite, usernameText]);
+        otherPlayer = scene.add.container(payload.x ?? 250, payload.y ?? 425, [otherPlayerSprite, usernameText]);
         scene.physics.world.enable(otherPlayer);
-
-        // Make the container interactive
         otherPlayer.setSize(otherPlayerSprite.width, otherPlayerSprite.height);
         otherPlayer.setInteractive();
 
-        // Add pointerdown event listener for right-click
         otherPlayer.on('pointerdown', function (pointer, localX, localY, event) {
           if (pointer.rightButtonDown()) {
-            // Handle right-click on other player
-            showPlayerMenu(scene, otherPlayer, data.username);
-            // Prevent propagation to avoid closing the menu immediately
+            showPlayerMenu(scene, otherPlayer, remoteUsername);
             event.stopPropagation();
           }
         });
 
-        otherPlayers.current[data.username] = otherPlayer;
+        otherPlayers.current[remoteUsername] = otherPlayer;
       }
 
-      // Update target position
-      otherPlayer.targetX = data.x;
-      otherPlayer.targetY = data.y;
+      otherPlayer.targetX = payload.x ?? otherPlayer.x;
+      otherPlayer.targetY = payload.y ?? otherPlayer.y;
 
-      // Update the other player's animation and properties
-      const otherPlayerSprite = otherPlayer.list[0]; // Assuming the sprite is the first child
-      if (otherPlayerSprite.anims) {
-        otherPlayerSprite.anims.play(data.animation, true);
-        otherPlayerSprite.setFlipX(data.flipX);
-        otherPlayerSprite.setScale(data.scale);
+      const otherPlayerSprite = otherPlayer.list[0];
+      if (otherPlayerSprite?.anims) {
+        otherPlayerSprite.anims.play(payload.animation || 'stand', true);
+        otherPlayerSprite.setFlipX(!!payload.flipX);
+        otherPlayerSprite.setScale(payload.scale || 2);
+      }
+
+      return otherPlayer;
+    };
+
+    // Initial state sync when a client connects.
+    if (data.type === 'gameState' && data.players) {
+      Object.entries(data.players).forEach(([id, playerData]) => {
+        ensureOtherPlayer(id, playerData);
+      });
+    }
+
+    // Incremental updates while others move.
+    if (data.type === 'playerUpdate' && data.username !== username) {
+      ensureOtherPlayer(data.username, data);
+    }
+
+    // Remove disconnected players.
+    if (data.type === 'playerDisconnect' && data.username) {
+      const disconnected = otherPlayers.current[data.username];
+      if (disconnected) {
+        disconnected.destroy(true);
+        delete otherPlayers.current[data.username];
       }
     }
 
@@ -510,6 +529,8 @@ function Game() {
     navigateToFight({
       player1: yourData,       // Your Ordinooki
       player2: opponentData,   // Opponent's Ordinooki
+      battleId: data.battle_id,
+      currentTurn: data.current_turn,
     });
 
     setNotification({ type: 'success', message: `Fight started with ${opponentData.username}!` });
@@ -786,6 +807,9 @@ function Game() {
           <BattleArena
             player1={fightData.player1}
             player2={fightData.player2}
+            battleId={fightData.battleId}
+            currentTurn={fightData.currentTurn}
+            currentUsername={currentUsername}
             onEndBattle={() => setFightData(null)}
           />
         )}
